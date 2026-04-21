@@ -1,0 +1,14 @@
+[
+  {
+    "query": "What is retrieval augmented generation?",
+    "expected_keywords": ["retrieval", "generation", "context", "documents"]
+  },
+  {
+    "query": "Why is RAG useful?",
+    "expected_keywords": ["accuracy", "hallucination", "context"]
+  },
+  {
+    "query": "What is vector search?",
+    "expected_keywords": ["embedding", "vector", "similarity"]
+  }
+]

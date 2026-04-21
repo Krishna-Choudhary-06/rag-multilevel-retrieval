@@ -1,0 +1,20 @@
+{
+  "what is rag system": {
+    "query": "what is rag system",
+    "answer": "A Rag system refers to a method that combines information retrieval with text generation. It retrieves relevant documents from an external knowledge base and uses them as context for generating responses. This approach improves accuracy, reduces hallucination, and ensures responses are grounded in real data.",
+    "sources": [
+      "rag_intro.txt",
+      "llm_context.txt",
+      "metadata_example.txt"
+    ]
+  },
+  "what is vector search?": {
+    "query": "what is vector search?",
+    "answer": "Vector search is a technique used to find similar items based on their embeddings.",
+    "sources": [
+      "vector_search.txt",
+      "metadata_example.txt",
+      "rag_intro.txt"
+    ]
+  }
+}
