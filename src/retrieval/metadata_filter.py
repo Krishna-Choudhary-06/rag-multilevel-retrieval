@@ -1,6 +1,5 @@
 import json
 
-
 METADATA_PATH = "embeddings/metadata_store/metadata.json"
 
 

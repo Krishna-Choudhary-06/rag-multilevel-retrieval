@@ -3,10 +3,7 @@ from src.ingestion.chunker import chunk_documents
 documents = [
     {
         "text": "This is a long document. " * 100,
-        "metadata": {
-            "doc_id": "doc1",
-            "source": "test"
-        }
+        "metadata": {"doc_id": "doc1", "source": "test"},
     }
 ]
 

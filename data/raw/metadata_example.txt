@@ -1,1 +1,0 @@
-Metadata in a retrieval system provides structured information about documents such as source, author, date, and category. It allows filtering before performing vector search, improving efficiency and relevance. For example, a system can filter documents by topic or time range before running semantic search, reducing the search space and improving performance.

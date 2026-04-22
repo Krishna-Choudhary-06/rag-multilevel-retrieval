@@ -5,7 +5,6 @@ import faiss
 
 from sentence_transformers import SentenceTransformer
 
-
 CHUNKS_PATH = "data/processed/chunks.json"
 INDEX_PATH = "embeddings/faiss_index/index.faiss"
 METADATA_PATH = "embeddings/metadata_store/metadata.json"
@@ -20,11 +19,7 @@ def save_metadata(chunks):
     os.makedirs(os.path.dirname(METADATA_PATH), exist_ok=True)
 
     metadata = [
-        {
-            "chunk_id": c["chunk_id"],
-            "text": c["text"],
-            "metadata": c["metadata"]
-        }
+        {"chunk_id": c["chunk_id"], "text": c["text"], "metadata": c["metadata"]}
         for c in chunks
     ]
 
@@ -44,10 +39,7 @@ def main():
 
     print("[INFO] Generating embeddings...")
     embeddings = model.encode(
-        texts,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-        show_progress_bar=True
+        texts, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=True
     )
 
     print("[INFO] Building FAISS index...")

@@ -16,5 +16,14 @@
       "metadata_example.txt",
       "rag_intro.txt"
     ]
+  },
+  "what is llm?": {
+    "query": "what is llm?",
+    "answer": "LLM stands for Large Language Models. These models generate responses based on input context.",
+    "sources": [
+      "llm_context.txt",
+      "rag_intro.txt",
+      "vector_search.txt"
+    ]
   }
 }

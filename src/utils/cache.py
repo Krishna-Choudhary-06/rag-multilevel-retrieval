@@ -1,7 +1,6 @@
 import json
 import os
 
-
 CACHE_PATH = "cache/query_cache.json"
 
 

@@ -13,9 +13,7 @@ for r in results:
 
 print("\n--- WITH FILTER (rag_intro.txt) ---")
 filtered_results = search_engine.search(
-    query,
-    top_k=3,
-    filters={"doc_id": "rag_intro.txt"}
+    query, top_k=3, filters={"doc_id": "rag_intro.txt"}
 )
 
 for r in filtered_results:

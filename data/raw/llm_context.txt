@@ -1,1 +1,0 @@
-Large Language Models (LLMs) generate responses based on input context. In a RAG system, the retrieved documents are provided as context to the LLM. The model uses this information to generate accurate and relevant answers. Without proper context, LLMs may hallucinate or produce incorrect outputs. Therefore, high-quality retrieval is critical for effective RAG systems.

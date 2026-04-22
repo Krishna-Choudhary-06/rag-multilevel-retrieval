@@ -3,7 +3,6 @@ import os
 
 from src.ingestion.chunker import chunk_documents
 
-
 RAW_DATA_PATH = "data/raw/"
 OUTPUT_PATH = "data/processed/chunks.json"
 
@@ -22,13 +21,9 @@ def load_raw_documents():
             with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
 
-            documents.append({
-                "text": text,
-                "metadata": {
-                    "doc_id": filename,
-                    "source": "local"
-                }
-            })
+            documents.append(
+                {"text": text, "metadata": {"doc_id": filename, "source": "local"}}
+            )
 
     return documents
 

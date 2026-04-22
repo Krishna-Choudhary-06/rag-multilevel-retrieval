@@ -1,28 +1,100 @@
 import json
-from rank_bm25 import BM25Okapi
+import os
 
+from src.retrieval.vector_search import VectorSearch
+from src.retrieval.bm25_search import BM25Search
 
-METADATA_PATH = "embeddings/metadata_store/metadata.json"
+CHUNKS_PATH = "data/processed/chunks.json"
 
 
 class HybridSearch:
     def __init__(self):
-        with open(METADATA_PATH, "r", encoding="utf-8") as f:
-            self.metadata = json.load(f)
+        print("[HYBRID] Initializing...")
 
-        self.texts = [item["text"] for item in self.metadata]
-        self.tokenized_texts = [text.lower().split() for text in self.texts]
+        self.vector = VectorSearch()
+        self.bm25 = BM25Search()
+        self.chunks = []
 
-        self.bm25 = BM25Okapi(self.tokenized_texts)
+    # =========================
+    # 🔥 ALWAYS LOAD LATEST DATA
+    # =========================
+    def _reload_chunks(self):
+        if os.path.exists(CHUNKS_PATH):
+            with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+                self.chunks = json.load(f)
+        else:
+            print("[HYBRID] No chunks found")
+            self.chunks = []
 
-    def bm25_search(self, query, top_k=5):
-        tokenized_query = query.lower().split()
-        scores = self.bm25.get_scores(tokenized_query)
+    # =========================
+    # MAIN SEARCH
+    # =========================
+    def search(self, query, top_k=10):
+        print("[HYBRID] Running hybrid search...")
 
-        ranked_indices = sorted(
-            range(len(scores)),
-            key=lambda i: scores[i],
-            reverse=True
-        )[:top_k]
+        # 🔥 Reload latest chunks every query
+        self._reload_chunks()
 
-        return ranked_indices
+        if not self.chunks:
+            return []
+
+        # =========================
+        # VECTOR SEARCH
+        # =========================
+        vector_results = self.vector.search(query, top_k=top_k)
+
+        # =========================
+        # BM25 SEARCH (RELOAD INSIDE)
+        # =========================
+        bm25_results = self.bm25.search(query, top_k=top_k)
+
+        # =========================
+        # MERGE RESULTS
+        # =========================
+        combined = {}
+
+        # 🔹 Vector weight (semantic)
+        VECTOR_WEIGHT = 0.7
+
+        for r in vector_results:
+            key = r["text"]
+
+            combined[key] = {
+                "text": r["text"],
+                "score": float(r.get("score", 0)) * VECTOR_WEIGHT,
+                "metadata": r.get("metadata", {}),
+            }
+
+        # 🔹 BM25 weight (keyword)
+        BM25_WEIGHT = 0.3
+
+        for r in bm25_results:
+            key = r["text"]
+
+            if key in combined:
+                combined[key]["score"] += float(r.get("score", 0)) * BM25_WEIGHT
+            else:
+                combined[key] = {
+                    "text": r["text"],
+                    "score": float(r.get("score", 0)) * BM25_WEIGHT,
+                    "metadata": r.get("metadata", {}),
+                }
+
+        # =========================
+        # SORT RESULTS
+        # =========================
+        final_results = sorted(
+            combined.values(), key=lambda x: x["score"], reverse=True
+        )
+
+        print(f"[HYBRID] Total merged results: {len(final_results)}")
+
+        # =========================
+        # 🔍 DEBUG (CRITICAL FOR YOU)
+        # =========================
+        print("\n[HYBRID DEBUG SOURCES]")
+        for r in final_results[:5]:
+            print(r.get("metadata", {}).get("source", "unknown"))
+        print("------------------------\n")
+
+        return final_results[:top_k]

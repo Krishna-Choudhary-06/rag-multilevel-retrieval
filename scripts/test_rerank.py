@@ -19,4 +19,4 @@ reranked = reranker.rerank(query, results, top_k=3)
 
 print("\n--- AFTER RERANK ---")
 for r in reranked:
-    print(r["rerank_score"], r["metadata"]["doc_id"])   
+    print(r["rerank_score"], r["metadata"]["doc_id"])

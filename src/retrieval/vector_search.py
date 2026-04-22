@@ -1,62 +1,69 @@
 import faiss
+import os
 import json
 import numpy as np
-
 from sentence_transformers import SentenceTransformer
 
-
-INDEX_PATH = "embeddings/faiss_index/index.faiss"
-METADATA_PATH = "embeddings/metadata_store/metadata.json"
+INDEX_PATH = "src/embeddings/faiss_index/index.faiss"
+META_PATH = "src/embeddings/faiss_index/metadata.json"
 
 
 class VectorSearch:
-    def __init__(self, model_name="BAAI/bge-small-en"):
-        self.model = SentenceTransformer(model_name)
-        self.index = faiss.read_index(INDEX_PATH)
+    def __init__(self):
+        print("[VECTOR] Loading embedding model...")
+        self.model = SentenceTransformer("BAAI/bge-small-en")
 
-        with open(METADATA_PATH, "r", encoding="utf-8") as f:
-            self.metadata = json.load(f)
+        # =========================
+        # LOAD OR CREATE INDEX
+        # =========================
+        if os.path.exists(INDEX_PATH):
+            print("[FAISS] Loading existing index...")
+            self.index = faiss.read_index(INDEX_PATH)
+        else:
+            print("[FAISS] No index found. Creating default FLAT index...")
+            dim = 384
+            self.index = faiss.IndexFlatL2(dim)
 
-    def _apply_metadata_filter(self, filters):
-        if not filters:
-            return set(range(len(self.metadata)))
+        # =========================
+        # SAFE nprobe (ONLY FOR IVF)
+        # =========================
+        if isinstance(self.index, faiss.IndexIVF):
+            print("[FAISS] IVF index detected → setting nprobe")
+            self.index.nprobe = 10
+        else:
+            print("[FAISS] Flat index detected → skipping nprobe")
 
-        valid_indices = set()
+        # =========================
+        # LOAD METADATA
+        # =========================
+        if os.path.exists(META_PATH):
+            with open(META_PATH, "r") as f:
+                self.metadata = json.load(f)
+        else:
+            self.metadata = []
 
-        for idx, item in enumerate(self.metadata):
-            match = True
-            for key, value in filters.items():
-                if item["metadata"].get(key) != value:
-                    match = False
-                    break
+    # =========================
+    # SEARCH
+    # =========================
+    def search(self, query, top_k=15):
+        if self.index.ntotal == 0:
+            print("[FAISS] Empty index")
+            return []
 
-            if match:
-                valid_indices.add(idx)
+        query_embedding = self.model.encode(query)
+        query_embedding = np.array([query_embedding]).astype("float32")
 
-        return valid_indices
-
-    def search(self, query: str, top_k: int = 5, filters: dict = None):
-        query_embedding = self.model.encode(
-            [query],
-            convert_to_numpy=True,
-            normalize_embeddings=True
-        )
-
-        scores, indices = self.index.search(query_embedding, top_k * 5)
-
-        valid_indices = self._apply_metadata_filter(filters)
+        distances, indices = self.index.search(query_embedding, top_k)
 
         results = []
+        for idx, score in zip(indices[0], distances[0]):
+            if idx < len(self.metadata):
+                results.append(
+                    {
+                        "score": float(score),
+                        "text": self.metadata[idx]["text"],
+                        "metadata": self.metadata[idx]["metadata"],
+                    }
+                )
 
-        for i, idx in enumerate(indices[0]):
-            if idx in valid_indices:
-                results.append({
-                    "score": float(scores[0][i]),
-                    "text": self.metadata[idx]["text"],
-                    "metadata": self.metadata[idx]["metadata"]
-                })
-
-            if len(results) >= top_k:
-                break
-
-        return results
+        return results[:top_k]
