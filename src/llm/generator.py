@@ -1,11 +1,24 @@
-import requests
+import os
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 class LLMGenerator:
-    def __init__(self, model="mistral"):
-        self.model = model
-        self.url = "http://localhost:11434/api/generate"
+    def __init__(self, model_name="gemini-flash-lite-latest"):
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            print("[WARNING] GOOGLE_API_KEY not found in environment variables.")
+        
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(model_name)
 
     def generate(self, query, context):
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key or api_key == "your_gemini_api_key_here":
+            return "LLM Error: Please provide a valid GOOGLE_API_KEY in your .env file. Visit https://aistudio.google.com/app/apikey to get one."
+
         prompt = f"""
 You are an expert AI assistant.
 
@@ -22,29 +35,14 @@ Question:
 
 Answer:
 """
-
         try:
-            response = requests.post(
-                self.url,
-                json={"model": self.model, "prompt": prompt, "stream": False},
-                timeout=60,
-            )
+            response = self.model.generate_content(prompt)
+            
+            if not response or not response.text:
+                return "LLM Error: No response received from Gemini."
 
-            if response.status_code != 200:
-                print("[HTTP ERROR]", response.status_code, response.text)
-                return "LLM Error: HTTP request failed."
+            return response.text.strip()
 
-            data = response.json()
-
-            if "response" not in data:
-                print("[OLLAMA ERROR RESPONSE]", data)
-                return "LLM Error: Invalid response format."
-
-            return data["response"].strip()
-
-        except requests.exceptions.Timeout:
-            return "LLM Error: Request timed out."
-        except requests.exceptions.ConnectionError:
-            return "LLM Error: Cannot connect to Ollama. Ensure Ollama is running."
         except Exception as e:
             return f"LLM Error: {str(e)}"
+

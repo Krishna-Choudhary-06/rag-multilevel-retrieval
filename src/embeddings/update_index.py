@@ -83,8 +83,11 @@ def create_index(embeddings, use_ivf=False):
 # =========================
 # UPDATE INDEX
 # =========================
-def update_faiss_index(use_ivf=False):
-    chunks = load_chunks()
+def update_faiss_index(new_chunks_list=None, use_ivf=False):
+    if new_chunks_list is not None:
+        chunks = new_chunks_list
+    else:
+        chunks = load_chunks()
 
     if not chunks:
         print("[EMBED] No chunks found")

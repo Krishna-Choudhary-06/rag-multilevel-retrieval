@@ -8,7 +8,15 @@ from src.pipeline.rag_pipeline import RAGPipeline
 from src.ingestion.ingest_uploaded import ingest_uploaded
 
 app = FastAPI()
-num_chunks = ingest_uploaded()
+
+@app.on_event("startup")
+def startup_event():
+    try:
+        print("[STARTUP] Running initial ingestion...")
+        num_chunks = ingest_uploaded()
+        print(f"[STARTUP] Ingestion complete. Chunks: {num_chunks}")
+    except Exception as e:
+        print(f"[STARTUP ERROR] Ingestion failed: {e}")
 
 # 🔥 FORCE RELOAD PIPELINE
 global rag
@@ -24,6 +32,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # REQUEST MODEL
 # =========================
 from typing import Optional, Dict
+
 
 class QueryRequest(BaseModel):
     query: str
@@ -88,9 +97,8 @@ async def upload_files(files: List[UploadFile] = File(...)):
     # ingest
     num_chunks = ingest_uploaded()
 
-    # 🔥 CRITICAL FIX
-    global rag
-    rag = RAGPipeline()
+    # 🔥 CRITICAL FIX: Clear sessions to force reload
+    session_manager.clear_sessions()
 
     return {
         "message": "Files uploaded and indexed successfully",
@@ -116,6 +124,7 @@ async def upload_multiple(files: List[UploadFile] = File(...)):
         saved.append(file.filename)
 
     num_chunks = ingest_uploaded()
+    session_manager.clear_sessions()
 
     return {
         "message": "Files uploaded & indexed",

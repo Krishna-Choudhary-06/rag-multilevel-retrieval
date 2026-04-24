@@ -16,4 +16,7 @@ tqdm
 
 python-multipart
 
-ollama
+python-dotenv
+google-generativeai
+pymupdf
+

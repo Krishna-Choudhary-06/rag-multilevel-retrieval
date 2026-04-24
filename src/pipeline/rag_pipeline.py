@@ -22,14 +22,11 @@ class RAGPipeline:
         filters = {}
         q = query.lower()
 
-        if "dbms" in q:
-            filters["doc_id"] = "DBMS Notes.pdf"
-
-        if "hackathon" in q:
-            filters["doc_id"] = "SCSE-AIML-HACKATHON-PS.pdf"
-
+        # Generic type filter
         if "pdf" in q:
             filters["file_type"] = "pdf"
+        elif "txt" in q:
+            filters["file_type"] = "txt"
 
         return filters
 

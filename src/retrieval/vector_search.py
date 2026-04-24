@@ -28,10 +28,10 @@ class VectorSearch:
         # SAFE nprobe (ONLY FOR IVF)
         # =========================
         if isinstance(self.index, faiss.IndexIVF):
-            print("[FAISS] IVF index detected → setting nprobe")
+            print("[FAISS] IVF index detected -> setting nprobe")
             self.index.nprobe = 10
         else:
-            print("[FAISS] Flat index detected → skipping nprobe")
+            print("[FAISS] Flat index detected -> skipping nprobe")
 
         # =========================
         # LOAD METADATA

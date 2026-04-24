@@ -1,7 +1,19 @@
 import streamlit as st
 import requests
 
-API_URL = "http://127.0.0.1:8000/query"
+# Try both common ports
+def get_api_url():
+    for port in [8000, 8001]:
+        url = f"http://127.0.0.1:{port}"
+        try:
+            res = requests.get(url, timeout=0.5)
+            if res.status_code == 200:
+                return f"{url}/query"
+        except:
+            continue
+    return "http://127.0.0.1:8000/query" # fallback
+
+API_URL = get_api_url()
 
 # =========================
 # PAGE CONFIG
@@ -15,7 +27,7 @@ st.set_page_config(
 # HEADER
 # =========================
 st.title("🧠 Clever RAG System")
-st.caption("Metadata → Semantic → Deep Research")
+st.caption("Metadata -> Semantic -> Deep Research")
 
 # =========================
 # SIDEBAR (CONTROL PANEL)

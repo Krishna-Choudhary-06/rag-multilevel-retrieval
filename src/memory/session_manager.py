@@ -10,3 +10,7 @@ class SessionManager:
             self.sessions[user_id] = RAGPipeline()
 
         return self.sessions[user_id]
+
+    def clear_sessions(self):
+        print("[SESSION] Clearing all cached pipelines")
+        self.sessions = {}
