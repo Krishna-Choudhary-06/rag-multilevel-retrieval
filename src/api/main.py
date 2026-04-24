@@ -23,9 +23,13 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # =========================
 # REQUEST MODEL
 # =========================
+from typing import Optional, Dict
+
 class QueryRequest(BaseModel):
     query: str
-    user_id: str  # 🔥 NEW FIELD
+    user_id: str = "default"
+    filters: Optional[Dict] = None
+    mode: str = "Auto"
 
 
 # =========================
@@ -46,13 +50,20 @@ def query_rag(req: QueryRequest):
 
     rag = session_manager.get_pipeline(user_id)
 
-    response = rag.run(req.query, req.user_id)
+    response = rag.run(
+    req.query,
+    user_id=req.user_id,
+    filters=req.filters,
+    mode=req.mode
+    )
     return {
         "query": req.query,
+        "mode": req.mode,
         "answer": response.get("answer", ""),
         "sources": response.get("sources", []),
         "scores": response.get("scores", []),
         "reranked": response.get("reranked", []),
+        "retrieved_chunks": response.get("retrieved_chunks", []),
         "latency": response.get("latency", 0),
     }
 

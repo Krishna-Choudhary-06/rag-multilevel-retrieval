@@ -37,27 +37,43 @@ class BM25Search:
 
         print(f"[BM25] Loaded documents: {len(self.docs)}")
 
-    def search(self, query, top_k=5):
-        with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
-            chunks = json.load(f)
+    def search(self, query, top_k=5, filters=None):
         if not self.bm25:
             return []
 
-        # 🔥 Consistent tokenization
-        tokenized_query = tokenize(query)
-
+        tokenized_query = query.split()
         scores = self.bm25.get_scores(tokenized_query)
 
-        ranked = sorted(list(enumerate(scores)), key=lambda x: x[1], reverse=True)
+        ranked = sorted(
+            list(enumerate(scores)),
+            key=lambda x: x[1],
+            reverse=True
+        )
 
         results = []
-        for idx, score in ranked[:top_k]:
-            results.append(
-                {
-                    "score": float(score),
-                    "text": self.docs[idx]["text"],
-                    "metadata": self.docs[idx]["metadata"],
-                }
-            )
+
+        for idx, score in ranked:
+            doc = self.docs[idx]
+
+            # -------------------------
+            # APPLY METADATA FILTER
+            # -------------------------
+            if filters:
+                skip = False
+                for k, v in filters.items():
+                    if doc["metadata"].get(k) != v:
+                        skip = True
+                        break
+                if skip:
+                    continue
+
+            results.append({
+                "text": doc["text"],
+                "metadata": doc["metadata"],
+                "score": float(score)
+            })
+
+            if len(results) >= top_k:
+                break
 
         return results

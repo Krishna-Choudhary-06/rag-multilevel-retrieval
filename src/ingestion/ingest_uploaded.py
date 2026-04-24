@@ -1,19 +1,16 @@
 import os
 import json
+from pathlib import Path
 
-from src.ingestion.chunker import chunk_text
+from src.ingestion.chunker import chunk_documents
 from src.embeddings.update_index import update_faiss_index
 
-# Paths
-UPLOAD_DIR = "data/uploaded"
+DATA_PATH = "data/uploaded"
 CHUNKS_PATH = "data/processed/chunks.json"
 
 
-# =========================
-# FILE LOADERS
-# =========================
-def load_txt(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
+def load_text(file_path):
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
         return f.read()
 
 
@@ -23,88 +20,84 @@ def load_pdf(file_path):
     text = ""
     doc = fitz.open(file_path)
 
-    for page in doc:
+    for page_num, page in enumerate(doc):
         text += page.get_text()
 
     return text
 
 
-def load_csv(file_path):
-    import pandas as pd
-
-    df = pd.read_csv(file_path)
-    return df.to_string()
-
-
-# =========================
-# MAIN INGEST FUNCTION
-# =========================
 def ingest_uploaded():
     print("[INGEST] Starting ingestion...")
 
-    # =========================
+    os.makedirs("data/processed", exist_ok=True)
+
+    files = os.listdir(DATA_PATH)
+    print(f"[INGEST] Files found: {files}")
+
+    # -------------------------
     # LOAD EXISTING CHUNKS
-    # =========================
+    # -------------------------
     if os.path.exists(CHUNKS_PATH):
-        with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
-            existing_chunks = json.load(f)
+        try:
+            with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+                existing_chunks = json.load(f)
+        except:
+            existing_chunks = []
     else:
         existing_chunks = []
 
-    existing_ids = set(c["id"] for c in existing_chunks)
-
-    # =========================
-    # LOAD FILES
-    # =========================
-    files = os.listdir(UPLOAD_DIR)
-    print(f"[INGEST] Files found: {files}")
+    existing_texts = set([c["text"] for c in existing_chunks])
 
     new_chunks = []
 
+    # -------------------------
+    # PROCESS FILES
+    # -------------------------
     for file in files:
-        file_path = os.path.join(UPLOAD_DIR, file)
+        file_path = os.path.join(DATA_PATH, file)
 
-        # =========================
-        # LOAD FILE BASED ON TYPE
-        # =========================
-        if file.endswith(".txt"):
-            text = load_txt(file_path)
-
-        elif file.endswith(".pdf"):
-            text = load_pdf(file_path)
-
-        elif file.endswith(".csv"):
-            text = load_csv(file_path)
-
-        else:
-            print(f"[INGEST] Skipping unsupported file: {file}")
+        # skip empty files
+        if os.path.getsize(file_path) == 0:
+            print(f"[SKIP] Empty file: {file}")
             continue
 
-        # =========================
-        # CHUNK TEXT
-        # =========================
-        chunks = chunk_text(text)
+        try:
+            if file.endswith(".pdf"):
+                text = load_pdf(file_path)
+            else:
+                text = load_text(file_path)
+        except Exception as e:
+            print(f"[ERROR] Failed to load {file}: {e}")
+            continue
 
-        for i, chunk in enumerate(chunks):
-            chunk_id = f"{file}_{i}"
+        if not text.strip():
+            print(f"[SKIP] No text extracted: {file}")
+            continue
 
-            # 🔥 SKIP DUPLICATES
-            if chunk_id in existing_ids:
-                continue
+        docs = [{
+            "text": text,
+            "metadata": {
+                "doc_id": file,
+                "file_type": file.split(".")[-1]
+            }
+        }]
 
-            new_chunks.append(
-                {"id": chunk_id, "text": chunk, "metadata": {"source": file}}
-            )
+        chunks = chunk_documents(docs)
 
-    # =========================
-    # MERGE OLD + NEW
-    # =========================
+        print(f"[CHUNKER] {file} → {len(chunks)} chunks")
+
+        # -------------------------
+        # REMOVE DUPLICATES
+        # -------------------------
+        for c in chunks:
+            if c["text"] not in existing_texts:
+                new_chunks.append(c)
+                existing_texts.add(c["text"])
+
+    # -------------------------
+    # MERGE + SAVE
+    # -------------------------
     all_chunks = existing_chunks + new_chunks
-
-    # =========================
-    # SAVE CHUNKS
-    # =========================
-    os.makedirs("data/processed", exist_ok=True)
 
     with open(CHUNKS_PATH, "w", encoding="utf-8") as f:
         json.dump(all_chunks, f, indent=2)
@@ -112,13 +105,12 @@ def ingest_uploaded():
     print(f"[INGEST] New chunks added: {len(new_chunks)}")
     print(f"[INGEST] Total chunks: {len(all_chunks)}")
 
-    # =========================
-    # UPDATE FAISS INDEX
-    # =========================
+    # -------------------------
+    # UPDATE FAISS
+    # -------------------------
     if new_chunks:
-        print("[EMBED] Updating FAISS index...")
         update_faiss_index(new_chunks)
     else:
-        print("[EMBED] No new chunks to embed")
+        print("[INGEST] No new chunks to embed")
 
     return len(new_chunks)

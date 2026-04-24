@@ -1,8 +1,7 @@
 import requests
 
-
 class LLMGenerator:
-    def __init__(self, model="llama3"):
+    def __init__(self, model="mistral"):
         self.model = model
         self.url = "http://localhost:11434/api/generate"
 
@@ -31,14 +30,12 @@ Answer:
                 timeout=60,
             )
 
-            # Check HTTP status
             if response.status_code != 200:
                 print("[HTTP ERROR]", response.status_code, response.text)
                 return "LLM Error: HTTP request failed."
 
             data = response.json()
 
-            # Debug unexpected responses
             if "response" not in data:
                 print("[OLLAMA ERROR RESPONSE]", data)
                 return "LLM Error: Invalid response format."
@@ -46,13 +43,8 @@ Answer:
             return data["response"].strip()
 
         except requests.exceptions.Timeout:
-            print("[LLM TIMEOUT]")
             return "LLM Error: Request timed out."
-
         except requests.exceptions.ConnectionError:
-            print("[LLM CONNECTION ERROR] Is Ollama running?")
-            return "LLM Error: Cannot connect to Ollama."
-
+            return "LLM Error: Cannot connect to Ollama. Ensure Ollama is running."
         except Exception as e:
-            print("[LLM UNKNOWN ERROR]", str(e))
-            return "LLM Error: Unexpected failure."
+            return f"LLM Error: {str(e)}"

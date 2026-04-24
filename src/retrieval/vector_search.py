@@ -45,25 +45,49 @@ class VectorSearch:
     # =========================
     # SEARCH
     # =========================
-    def search(self, query, top_k=15):
-        if self.index.ntotal == 0:
-            print("[FAISS] Empty index")
+    def search(self, query, top_k=5, filters=None):
+        # -------------------------
+        # SAFETY CHECK
+        # -------------------------
+        if self.index is None or self.index.ntotal == 0:
             return []
 
-        query_embedding = self.model.encode(query)
-        query_embedding = np.array([query_embedding]).astype("float32")
+        # -------------------------
+        # ENCODE QUERY
+        # -------------------------
+        query_vec = self.model.encode([query])
+        query_vec = query_vec.astype("float32")
 
-        distances, indices = self.index.search(query_embedding, top_k)
+        # -------------------------
+        # SEARCH
+        # -------------------------
+        scores, indices = self.index.search(query_vec, top_k * 2)
 
         results = []
-        for idx, score in zip(indices[0], distances[0]):
-            if idx < len(self.metadata):
-                results.append(
-                    {
-                        "score": float(score),
-                        "text": self.metadata[idx]["text"],
-                        "metadata": self.metadata[idx]["metadata"],
-                    }
-                )
+
+        for score, idx in zip(scores[0], indices[0]):
+            if idx >= len(self.metadata):
+                continue
+
+            item = self.metadata[idx]
+
+            # -------------------------
+            # APPLY FILTERS
+            # -------------------------
+            if filters:
+                skip = False
+                for k, v in filters.items():
+                    if item["metadata"].get(k) != v:
+                        skip = True
+                        break
+
+                if skip:
+                    continue
+
+            results.append({
+                "text": item["text"],
+                "metadata": item["metadata"],
+                "score": float(score)
+            })
 
         return results[:top_k]

@@ -1,10 +1,5 @@
-import json
-import os
-
 from src.retrieval.vector_search import VectorSearch
 from src.retrieval.bm25_search import BM25Search
-
-CHUNKS_PATH = "data/processed/chunks.json"
 
 
 class HybridSearch:
@@ -13,88 +8,88 @@ class HybridSearch:
 
         self.vector = VectorSearch()
         self.bm25 = BM25Search()
-        self.chunks = []
+
+        # weights (can tune later)
+        self.vector_weight = 0.6
+        self.bm25_weight = 0.4
 
     # =========================
-    # 🔥 ALWAYS LOAD LATEST DATA
+    # NORMALIZE SCORES
     # =========================
-    def _reload_chunks(self):
-        if os.path.exists(CHUNKS_PATH):
-            with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
-                self.chunks = json.load(f)
-        else:
-            print("[HYBRID] No chunks found")
-            self.chunks = []
+    def normalize(self, scores):
+        if not scores:
+            return scores
+
+        min_s = min(scores)
+        max_s = max(scores)
+
+        if max_s == min_s:
+            return [1.0 for _ in scores]
+
+        return [(s - min_s) / (max_s - min_s) for s in scores]
 
     # =========================
     # MAIN SEARCH
     # =========================
-    def search(self, query, top_k=10):
+    def search(self, query, top_k=10, filters=None):
         print("[HYBRID] Running hybrid search...")
 
-        # 🔥 Reload latest chunks every query
-        self._reload_chunks()
-
-        if not self.chunks:
-            return []
-
-        # =========================
+        # -------------------------
         # VECTOR SEARCH
-        # =========================
-        vector_results = self.vector.search(query, top_k=top_k)
+        # -------------------------
+        vector_results = self.vector.search(query, top_k=top_k, filters=filters)
 
-        # =========================
-        # BM25 SEARCH (RELOAD INSIDE)
-        # =========================
-        bm25_results = self.bm25.search(query, top_k=top_k)
+        # -------------------------
+        # BM25 SEARCH
+        # -------------------------
+        bm25_results = self.bm25.search(query, top_k=top_k, filters=filters)
 
-        # =========================
+        # -------------------------
+        # NORMALIZE SCORES
+        # -------------------------
+        vector_scores = [r["score"] for r in vector_results]
+        bm25_scores = [r["score"] for r in bm25_results]
+
+        vector_scores = self.normalize(vector_scores)
+        bm25_scores = self.normalize(bm25_scores)
+
+        # assign normalized scores back
+        for i, r in enumerate(vector_results):
+            r["score"] = vector_scores[i] * self.vector_weight
+
+        for i, r in enumerate(bm25_results):
+            r["score"] = bm25_scores[i] * self.bm25_weight
+
+        # -------------------------
         # MERGE RESULTS
-        # =========================
-        combined = {}
+        # -------------------------
+        combined = vector_results + bm25_results
 
-        # 🔹 Vector weight (semantic)
-        VECTOR_WEIGHT = 0.7
+        # -------------------------
+        # REMOVE DUPLICATES (SMART)
+        # -------------------------
+        seen = {}
+        unique = []
 
-        for r in vector_results:
-            key = r["text"]
+        for r in combined:
+            key = r["text"][:150]  # fingerprint
 
-            combined[key] = {
-                "text": r["text"],
-                "score": float(r.get("score", 0)) * VECTOR_WEIGHT,
-                "metadata": r.get("metadata", {}),
-            }
-
-        # 🔹 BM25 weight (keyword)
-        BM25_WEIGHT = 0.3
-
-        for r in bm25_results:
-            key = r["text"]
-
-            if key in combined:
-                combined[key]["score"] += float(r.get("score", 0)) * BM25_WEIGHT
+            if key not in seen:
+                seen[key] = r
+                unique.append(r)
             else:
-                combined[key] = {
-                    "text": r["text"],
-                    "score": float(r.get("score", 0)) * BM25_WEIGHT,
-                    "metadata": r.get("metadata", {}),
-                }
+                # keep higher score
+                if r["score"] > seen[key]["score"]:
+                    seen[key] = r
 
-        # =========================
-        # SORT RESULTS
-        # =========================
-        final_results = sorted(
-            combined.values(), key=lambda x: x["score"], reverse=True
-        )
+        # rebuild unique list from dict
+        unique = list(seen.values())
 
-        print(f"[HYBRID] Total merged results: {len(final_results)}")
+        # -------------------------
+        # SORT BY FINAL SCORE
+        # -------------------------
+        unique = sorted(unique, key=lambda x: x["score"], reverse=True)
 
-        # =========================
-        # 🔍 DEBUG (CRITICAL FOR YOU)
-        # =========================
-        print("\n[HYBRID DEBUG SOURCES]")
-        for r in final_results[:5]:
-            print(r.get("metadata", {}).get("source", "unknown"))
-        print("------------------------\n")
+        print(f"[HYBRID] Final results: {len(unique)}")
 
-        return final_results[:top_k]
+        return unique[:top_k]
