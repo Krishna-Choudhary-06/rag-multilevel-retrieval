@@ -38,7 +38,7 @@ def load_csv(path):
 def load_file(path):
     ext = os.path.splitext(path)[1].lower()
 
-    if ext == ".txt":
+    if ext in [".txt", ".md", ".json", ".log"]:
         return load_txt(path)
 
     elif ext == ".pdf":

@@ -36,7 +36,7 @@ with st.sidebar:
     st.header("📂 Document Upload")
     uploaded_files = st.file_uploader(
         "Upload new files", 
-        type=["pdf", "txt", "md"], 
+        type=["pdf", "txt", "md", "csv", "json", "log"], 
         accept_multiple_files=True
     )
     
