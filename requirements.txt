@@ -17,4 +17,4 @@ tqdm
 python-multipart
 
 ollama
-PyMuPDF
+pymupdf

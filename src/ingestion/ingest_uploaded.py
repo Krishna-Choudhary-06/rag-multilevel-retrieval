@@ -24,6 +24,7 @@ def ingest_uploaded():
     print("[INGEST] Starting ingestion...")
 
     os.makedirs("data/processed", exist_ok=True)
+    os.makedirs(DATA_PATH, exist_ok=True)
 
     files = sorted(os.listdir(DATA_PATH))
     print(f"[INGEST] Files found: {files}")
@@ -77,7 +78,7 @@ def ingest_uploaded():
 
         chunks = chunk_documents(docs)
 
-        print(f"[CHUNKER] {file} → {len(chunks)} chunks")
+        print(f"[CHUNKER] {file} -> {len(chunks)} chunks")
         current_chunks_by_doc[file] = chunks
 
     def signature(chunks):

@@ -8,7 +8,12 @@ from src.ingestion.ingest_uploaded import ingest_uploaded
 from src.memory.session_manager import SessionManager
 
 app = FastAPI()
-num_chunks = ingest_uploaded()
+
+@app.on_event("startup")
+def startup_event():
+    print("[STARTUP] Running initial ingestion...")
+    num_chunks = ingest_uploaded()
+    print(f"[STARTUP] Ingestion complete. Chunks: {num_chunks}")
 
 session_manager = SessionManager()
 
@@ -20,6 +25,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # REQUEST MODEL
 # =========================
 from typing import Optional, Dict
+
 
 class QueryRequest(BaseModel):
     query: str

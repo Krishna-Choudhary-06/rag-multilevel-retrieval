@@ -22,7 +22,6 @@ Question:
 
 Answer:
 """
-
         try:
             response = requests.post(
                 self.url,

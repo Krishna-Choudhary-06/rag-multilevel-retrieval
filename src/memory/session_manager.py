@@ -14,3 +14,7 @@ class SessionManager:
     def refresh_pipelines(self):
         for pipeline in self.sessions.values():
             pipeline.hybrid.refresh()
+
+    def clear_sessions(self):
+        print("[SESSION] Clearing all cached pipelines")
+        self.sessions = {}
