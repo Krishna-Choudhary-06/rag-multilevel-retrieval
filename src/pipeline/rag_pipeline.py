@@ -91,8 +91,9 @@ Better query:
         # MODE 1: METADATA ONLY
         # =========================
         if mode == "Metadata Only":
-            results = self.hybrid.search(query, top_k=10, filters=auto_filters)
-            mapped_results = [format_chunk(r) for r in results]
+            results = self.hybrid.search(query, top_k=15, filters=auto_filters)
+            top_results = results[:5]
+            mapped_results = [format_chunk(r) for r in top_results]
 
             return {
                 "answer": "Metadata filtered results (No LLM Generation)",
@@ -113,7 +114,7 @@ Better query:
                 return {"answer": "No results found", "sources": [], "retrieved_chunks": [], "reranked": [], "latency": 0}
 
             reranked = self.reranker.rerank(query, results)
-            top_results = reranked[:3]
+            top_results = reranked[:5]
 
             context = "\n\n".join([r["text"] for r in top_results])
             answer = self.llm.generate(query, context)
@@ -121,8 +122,8 @@ Better query:
             return {
                 "answer": answer,
                 "sources": get_source_list(top_results),
-                "retrieved_chunks": [format_chunk(r) for r in results],
-                "reranked": [format_chunk(r) for r in reranked],
+                "retrieved_chunks": [format_chunk(r) for r in results[:5]],
+                "reranked": [format_chunk(r) for r in top_results],
                 "scores": [r.get("score") for r in top_results],
                 "latency": round(time.time() - start_time, 3)
             }
@@ -152,7 +153,7 @@ Better query:
                 unique.append(r)
 
         reranked = self.reranker.rerank(query, unique)
-        top_results = reranked[:6]
+        top_results = reranked[:5]
 
         context = "\n\n".join([r["text"] for r in top_results])
 
@@ -163,8 +164,8 @@ Better query:
         return {
             "answer": answer,
             "sources": get_source_list(top_results),
-            "retrieved_chunks": [format_chunk(r) for r in unique],
-            "reranked": [format_chunk(r) for r in reranked],
+            "retrieved_chunks": [format_chunk(r) for r in top_results],
+            "reranked": [format_chunk(r) for r in top_results],
             "scores": [r.get("score") for r in top_results],
             "latency": round(time.time() - start_time, 3)
         }

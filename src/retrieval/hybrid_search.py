@@ -13,6 +13,10 @@ class HybridSearch:
         self.vector_weight = 0.6
         self.bm25_weight = 0.4
 
+    def refresh(self):
+        self.vector.refresh()
+        self.bm25.refresh()
+
     # =========================
     # NORMALIZE SCORES
     # =========================

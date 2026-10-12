@@ -1,7 +1,6 @@
 import os
 import json
 import faiss
-import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
@@ -67,7 +66,7 @@ def create_index(embeddings, use_ivf=False):
 
     if use_ivf:
         print("[FAISS] Creating IVF index...")
-        nlist = 100
+        nlist = min(100, len(embeddings))
 
         quantizer = faiss.IndexFlatL2(dim)
         index = faiss.IndexIVFFlat(quantizer, dim, nlist)
@@ -83,21 +82,58 @@ def create_index(embeddings, use_ivf=False):
 # =========================
 # UPDATE INDEX
 # =========================
-def update_faiss_index(use_ivf=False):
-    chunks = load_chunks()
+def chunk_identity(chunk):
+    metadata = chunk.get("metadata", {})
+    doc_id = metadata.get("doc_id") or metadata.get("source")
+    chunk_id = metadata.get("chunk_id")
 
-    if not chunks:
+    if chunk_id is None and doc_id and chunk.get("id"):
+        legacy_id = str(chunk["id"])
+        prefix = f"{doc_id}_"
+        if legacy_id.startswith(prefix):
+            suffix = legacy_id[len(prefix):]
+            if suffix.isdigit():
+                chunk_id = int(suffix)
+
+    if doc_id and chunk_id is not None:
+        return ("document_chunk", doc_id, chunk_id)
+    if doc_id:
+        return ("document_text", doc_id, chunk.get("text", ""))
+    return ("text", chunk.get("text", ""))
+
+
+def update_faiss_index(chunks=None, use_ivf=False, rebuild_docs=None):
+    requested_chunks = load_chunks() if chunks is None else chunks
+    if not requested_chunks:
         print("[EMBED] No chunks found")
         return
 
     index, metadata = load_index_and_meta()
+    rebuild_docs = set(rebuild_docs or ())
 
-    # =========================
-    # REMOVE DUPLICATES
-    # =========================
-    existing_texts = set([m["text"] for m in metadata])
+    rebuild = bool(rebuild_docs) or index is None or index.ntotal != len(metadata)
+    if rebuild:
+        print("[FAISS] Rebuilding index to restore vector/metadata alignment...")
+        preserved_metadata = [
+            item
+            for item in metadata
+            if (item.get("metadata", {}).get("doc_id")
+                or item.get("metadata", {}).get("source"))
+            not in rebuild_docs
+        ]
+        chunks = requested_chunks + preserved_metadata
+        metadata = []
+        index = None
+    else:
+        chunks = requested_chunks
 
-    new_chunks = [c for c in chunks if c["text"] not in existing_texts]
+    existing_keys = {chunk_identity(item) for item in metadata}
+    new_chunks = []
+    for chunk in chunks:
+        key = chunk_identity(chunk)
+        if key not in existing_keys:
+            new_chunks.append(chunk)
+            existing_keys.add(key)
 
     if not new_chunks:
         print("[FAISS] No new chunks to add")
@@ -131,14 +167,8 @@ def update_faiss_index(use_ivf=False):
 
     print(f"[FAISS] Added new vectors: {len(embeddings)}")
 
-    # =========================
-    # UPDATE METADATA
-    # =========================
     metadata.extend(new_chunks)
 
-    # =========================
-    # SAVE INDEX + META
-    # =========================
     faiss.write_index(index, INDEX_PATH)
 
     with open(META_PATH, "w", encoding="utf-8") as f:

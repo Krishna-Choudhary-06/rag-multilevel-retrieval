@@ -1,7 +1,7 @@
 import requests
 
 class LLMGenerator:
-    def __init__(self, model="mistral"):
+    def __init__(self, model="qwen2.5:3b"):
         self.model = model
         self.url = "http://localhost:11434/api/generate"
 

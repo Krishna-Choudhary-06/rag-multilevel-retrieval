@@ -1,7 +1,6 @@
 import faiss
 import os
 import json
-import numpy as np
 from sentence_transformers import SentenceTransformer
 
 INDEX_PATH = "src/embeddings/faiss_index/index.faiss"
@@ -12,7 +11,9 @@ class VectorSearch:
     def __init__(self):
         print("[VECTOR] Loading embedding model...")
         self.model = SentenceTransformer("BAAI/bge-small-en")
+        self.refresh()
 
+    def refresh(self):
         # =========================
         # LOAD OR CREATE INDEX
         # =========================
@@ -66,7 +67,7 @@ class VectorSearch:
         results = []
 
         for score, idx in zip(scores[0], indices[0]):
-            if idx >= len(self.metadata):
+            if idx < 0 or idx >= len(self.metadata):
                 continue
 
             item = self.metadata[idx]

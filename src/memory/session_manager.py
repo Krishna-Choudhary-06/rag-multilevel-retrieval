@@ -10,3 +10,7 @@ class SessionManager:
             self.sessions[user_id] = RAGPipeline()
 
         return self.sessions[user_id]
+
+    def refresh_pipelines(self):
+        for pipeline in self.sessions.values():
+            pipeline.hybrid.refresh()

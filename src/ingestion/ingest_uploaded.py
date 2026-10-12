@@ -1,6 +1,5 @@
 import os
 import json
-from pathlib import Path
 
 from src.ingestion.chunker import chunk_documents
 from src.embeddings.update_index import update_faiss_index
@@ -15,15 +14,10 @@ def load_text(file_path):
 
 
 def load_pdf(file_path):
-    import fitz  # PyMuPDF
+    import pymupdf
 
-    text = ""
-    doc = fitz.open(file_path)
-
-    for page_num, page in enumerate(doc):
-        text += page.get_text()
-
-    return text
+    with pymupdf.open(file_path) as doc:
+        return "\n".join(page.get_text() for page in doc)
 
 
 def ingest_uploaded():
@@ -31,28 +25,29 @@ def ingest_uploaded():
 
     os.makedirs("data/processed", exist_ok=True)
 
-    files = os.listdir(DATA_PATH)
+    files = sorted(os.listdir(DATA_PATH))
     print(f"[INGEST] Files found: {files}")
 
     # -------------------------
     # LOAD EXISTING CHUNKS
     # -------------------------
     if os.path.exists(CHUNKS_PATH):
-        try:
-            with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
-                existing_chunks = json.load(f)
-        except:
-            existing_chunks = []
+        with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+            existing_chunks = json.load(f)
     else:
         existing_chunks = []
 
-    existing_texts = set([c["text"] for c in existing_chunks])
-
-    new_chunks = []
+    existing_by_doc = {}
+    for chunk in existing_chunks:
+        chunk_metadata = chunk.get("metadata", {})
+        doc_id = chunk_metadata.get("doc_id") or chunk_metadata.get("source")
+        if doc_id:
+            existing_by_doc.setdefault(doc_id, []).append(chunk)
 
     # -------------------------
     # PROCESS FILES
     # -------------------------
+    current_chunks_by_doc = {}
     for file in files:
         file_path = os.path.join(DATA_PATH, file)
 
@@ -62,17 +57,15 @@ def ingest_uploaded():
             continue
 
         try:
-            if file.endswith(".pdf"):
+            if file.lower().endswith(".pdf"):
                 text = load_pdf(file_path)
             else:
                 text = load_text(file_path)
         except Exception as e:
-            print(f"[ERROR] Failed to load {file}: {e}")
-            continue
+            raise RuntimeError(f"Failed to load document {file}: {e}") from e
 
         if not text.strip():
-            print(f"[SKIP] No text extracted: {file}")
-            continue
+            raise ValueError(f"No text could be extracted from document: {file}")
 
         docs = [{
             "text": text,
@@ -85,19 +78,50 @@ def ingest_uploaded():
         chunks = chunk_documents(docs)
 
         print(f"[CHUNKER] {file} → {len(chunks)} chunks")
+        current_chunks_by_doc[file] = chunks
 
-        # -------------------------
-        # REMOVE DUPLICATES
-        # -------------------------
-        for c in chunks:
-            if c["text"] not in existing_texts:
-                new_chunks.append(c)
-                existing_texts.add(c["text"])
+    def signature(chunks):
+        return sorted(
+            (
+                (chunk.get("metadata", {}).get("chunk_id"), chunk.get("text", ""))
+                for chunk in chunks
+            ),
+            key=lambda item: str(item[0]),
+        )
+
+    changed_docs = {
+        doc_id
+        for doc_id, chunks in current_chunks_by_doc.items()
+        if signature(existing_by_doc.get(doc_id, [])) != signature(chunks)
+    }
+    replaced_docs = {
+        doc_id
+        for doc_id in changed_docs
+        if existing_by_doc.get(doc_id)
+    }
+    new_chunks = [
+        chunk
+        for doc_id in sorted(changed_docs)
+        for chunk in current_chunks_by_doc[doc_id]
+    ]
 
     # -------------------------
     # MERGE + SAVE
     # -------------------------
-    all_chunks = existing_chunks + new_chunks
+    processed_docs = set(current_chunks_by_doc)
+    all_chunks = [
+        chunk
+        for chunk in existing_chunks
+        if (
+            chunk.get("metadata", {}).get("doc_id")
+            or chunk.get("metadata", {}).get("source")
+        ) not in processed_docs
+    ]
+    all_chunks.extend(
+        chunk
+        for chunks in current_chunks_by_doc.values()
+        for chunk in chunks
+    )
 
     with open(CHUNKS_PATH, "w", encoding="utf-8") as f:
         json.dump(all_chunks, f, indent=2)
@@ -108,9 +132,8 @@ def ingest_uploaded():
     # -------------------------
     # UPDATE FAISS
     # -------------------------
-    if new_chunks:
-        update_faiss_index(new_chunks)
-    else:
-        print("[INGEST] No new chunks to embed")
+    # Reconcile the index on every ingestion run. This also retries chunks
+    # that were saved successfully when an earlier indexing attempt failed.
+    update_faiss_index(all_chunks, rebuild_docs=replaced_docs)
 
     return len(new_chunks)

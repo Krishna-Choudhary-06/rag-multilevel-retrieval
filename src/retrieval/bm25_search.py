@@ -18,7 +18,11 @@ def tokenize(text):
 class BM25Search:
     def __init__(self):
         print("[BM25] Initializing...")
+        self.docs = []
+        self.bm25 = None
+        self.refresh()
 
+    def refresh(self):
         if not os.path.exists(CHUNKS_PATH):
             print("[BM25] No chunks found")
             self.docs = []
@@ -30,7 +34,10 @@ class BM25Search:
 
         self.docs = chunks
 
-        # 🔥 Better tokenization
+        if not chunks:
+            self.bm25 = None
+            return
+
         tokenized_corpus = [tokenize(c["text"]) for c in chunks]
 
         self.bm25 = BM25Okapi(tokenized_corpus)
@@ -38,7 +45,7 @@ class BM25Search:
         print(f"[BM25] Loaded documents: {len(self.docs)}")
 
     def search(self, query, top_k=5, filters=None):
-        if not self.bm25:
+        if self.bm25 is None:
             return []
 
         tokenized_query = query.split()

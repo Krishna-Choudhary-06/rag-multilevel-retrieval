@@ -4,15 +4,11 @@ from typing import List
 import os
 import shutil
 
-from src.pipeline.rag_pipeline import RAGPipeline
 from src.ingestion.ingest_uploaded import ingest_uploaded
+from src.memory.session_manager import SessionManager
 
 app = FastAPI()
 num_chunks = ingest_uploaded()
-
-# 🔥 FORCE RELOAD PIPELINE
-global rag
-from src.memory.session_manager import SessionManager
 
 session_manager = SessionManager()
 
@@ -87,10 +83,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
     # ingest
     num_chunks = ingest_uploaded()
-
-    # 🔥 CRITICAL FIX
-    global rag
-    rag = RAGPipeline()
+    session_manager.refresh_pipelines()
 
     return {
         "message": "Files uploaded and indexed successfully",
@@ -116,6 +109,7 @@ async def upload_multiple(files: List[UploadFile] = File(...)):
         saved.append(file.filename)
 
     num_chunks = ingest_uploaded()
+    session_manager.refresh_pipelines()
 
     return {
         "message": "Files uploaded & indexed",
@@ -135,7 +129,6 @@ def reset_index():
 
 
 import faiss
-import os
 import json
 
 
